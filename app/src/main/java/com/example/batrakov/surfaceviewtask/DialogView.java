@@ -1,14 +1,10 @@
 package com.example.batrakov.surfaceviewtask;
 
-import android.app.Dialog;
 import android.app.DialogFragment;
-import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Movie;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -17,15 +13,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
 /**
- * Created by batrakov on 24.11.17.
+ * Dialog include SurfaceView and Button to self dismiss.
  */
-
 public class DialogView extends DialogFragment implements SurfaceHolder.Callback {
 
+    private static final String TAG = DialogView.class.getSimpleName();
     private Thread mDrawThread;
 
     @Override
@@ -38,16 +33,19 @@ public class DialogView extends DialogFragment implements SurfaceHolder.Callback
             }
         });
         SurfaceView surfaceView = view.findViewById(R.id.surfaceView);
+        surfaceView.setZOrderOnTop(true);
+
         surfaceView.getHolder().addCallback(this);
-        getDialog().setTitle("Test dialog.");
+        getDialog().setTitle("Gif dialog.");
         return view;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        DisplayMetrics display = getResources().getDisplayMetrics();
-        getDialog().getWindow().setLayout((int)(display.widthPixels * 0.9), WindowManager.LayoutParams.MATCH_PARENT);
+        if (getDialog().getWindow() != null) {
+            getDialog().getWindow().setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+        }
 
     }
 
@@ -56,51 +54,41 @@ public class DialogView extends DialogFragment implements SurfaceHolder.Callback
         mDrawThread = new Thread() {
             @Override
             public void run() {
-                long movieStart = 0;
+                int startX = 0;
+                int startY = 0;
+
                 InputStream is = getResources().openRawResource(R.raw.gif);
                 Surface surface = holder.getSurface();
                 Movie movie;
-                byte[] array = streamToBytes(is);
-                movie = Movie.decodeByteArray(array, 0, array.length);
-                long now = android.os.SystemClock.uptimeMillis();
+                movie = Movie.decodeStream(is);
+                int movieDuration = movie.duration();
+                int gifTime = 0;
                 try {
-                    while (!isInterrupted()) {
-                        if (movieStart == 0) {   // first time
-                            movieStart = now;
+                    while (surface.isValid()) {
+                        if (gifTime >= movieDuration) {
+                            gifTime = 0;
                         }
+                        movie.setTime(gifTime += 50);
 
-                        int dur = movie.duration();
-
-                        if (dur == 0)
-                        {
-                            dur = 1000;
-                        }
-                        int relTime = (int)((now - movieStart) % dur);
-                        movie.setTime(relTime);
                         Canvas canvas = surface.lockCanvas(holder.getSurfaceFrame());
-                        movie.draw(canvas,120,100);
+
+                        if (startX == 0) {
+                            startX = (canvas.getWidth() - movie.width()) / 2;
+                            startY = (canvas.getHeight() - movie.height()) / 2;
+                        }
+
+                        movie.draw(canvas, startX, startY);
                         surface.unlockCanvasAndPost(canvas);
-                        sleep(50);
+
+                        sleep(40);
                     }
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException aE) {
+                    aE.printStackTrace();
+                    Log.i(TAG, "DrawThread: interrupted");
                 }
             }
         };
         mDrawThread.start();
-    }
-
-
-    private static byte[] streamToBytes(InputStream is) {
-        ByteArrayOutputStream os = new ByteArrayOutputStream(1024);
-        byte[] buffer = new byte[1024];
-        int len;
-        try {
-            while ((len = is.read(buffer)) >= 0) {
-                os.write(buffer, 0, len);
-            }
-        } catch (java.io.IOException e) {
-        }
-        return os.toByteArray();
     }
 
     @Override
@@ -110,10 +98,15 @@ public class DialogView extends DialogFragment implements SurfaceHolder.Callback
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
-        if(mDrawThread != null) {
-            mDrawThread.interrupt();
-            mDrawThread = null;
+        if (mDrawThread != null) {
+            try {
+                mDrawThread.interrupt();
+                mDrawThread.join();
+                mDrawThread = null;
+            } catch (InterruptedException aE) {
+                aE.printStackTrace();
+                Log.i(TAG, "DrawThread: interruption failed");
+            }
         }
-
     }
 }

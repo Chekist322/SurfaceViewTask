@@ -4,13 +4,18 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/ic_launcher_background"
     tools:context="com.test.my.transparenttest.MainActivity"
-    android:background="#3eadf2"
     >
+
     <Button
         android:id="@+id/startButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Start"/>
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true"
+        android:text="@string/start"
+        android:textAppearance="@android:style/TextAppearance.Material.Widget.Button"
+        android:textSize="30sp"/>
 
 </RelativeLayout>

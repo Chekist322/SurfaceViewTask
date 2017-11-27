@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SurfaceViewTask</string>
+    <string name="start">Start</string>
 </resources>

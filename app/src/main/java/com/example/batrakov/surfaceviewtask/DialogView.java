@@ -21,7 +21,10 @@ import java.io.InputStream;
 public class DialogView extends DialogFragment implements SurfaceHolder.Callback {
 
     private static final String TAG = DialogView.class.getSimpleName();
-    private Thread mDrawThread;
+    private Surface mSurface;
+    private SurfaceHolder mSurfaceHolder;
+    private Thread mTopDrawThread;
+    private Thread mBottomDrawThread;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -51,44 +54,84 @@ public class DialogView extends DialogFragment implements SurfaceHolder.Callback
 
     @Override
     public void surfaceCreated(final SurfaceHolder holder) {
-        mDrawThread = new Thread() {
+        mSurfaceHolder = holder;
+        mSurface = holder.getSurface();
+        mTopDrawThread = new Thread() {
             @Override
             public void run() {
-                int startX = 0;
-                int startY = 0;
+                int xPosition = -1;
+                int yPosition = 0;
 
                 InputStream is = getResources().openRawResource(R.raw.gif);
-                Surface surface = holder.getSurface();
                 Movie movie;
                 movie = Movie.decodeStream(is);
-                int movieDuration = movie.duration();
-                int gifTime = 0;
+
+                int movieDurationMs = movie.duration();
+
+                int gifTimeMs = 0;
+
                 try {
-                    while (surface.isValid()) {
-                        if (gifTime >= movieDuration) {
-                            gifTime = 0;
+                    while (!isInterrupted()) {
+                        if (gifTimeMs >= movieDurationMs) {
+                            gifTimeMs = 0;
                         }
-                        movie.setTime(gifTime += 50);
-
-                        Canvas canvas = surface.lockCanvas(holder.getSurfaceFrame());
-
-                        if (startX == 0) {
-                            startX = (canvas.getWidth() - movie.width()) / 2;
-                            startY = (canvas.getHeight() - movie.height()) / 2;
-                        }
-
-                        movie.draw(canvas, startX, startY);
-                        surface.unlockCanvasAndPost(canvas);
-
-                        sleep(40);
+                        movie.setTime(gifTimeMs += 20);
+                        drawGif(xPosition, yPosition, movie);
+                        sleep(1);
                     }
                 } catch (InterruptedException aE) {
                     aE.printStackTrace();
-                    Log.i(TAG, "DrawThread: interrupted");
+                    Log.i(TAG, "TopDrawThread: interrupted");
                 }
             }
         };
-        mDrawThread.start();
+        mTopDrawThread.start();
+
+        mBottomDrawThread = new Thread() {
+            @Override
+            public void run() {
+                int xPosition = -1;
+                int yPosition = -1;
+
+                InputStream is = getResources().openRawResource(R.raw.gif1);
+                Movie movie;
+                movie = Movie.decodeStream(is);
+
+                int movieDurationMs = movie.duration();
+
+                int gifTimeMs = 0;
+
+                try {
+                    while (!isInterrupted()) {
+                        if (gifTimeMs >= movieDurationMs) {
+                            gifTimeMs = 0;
+                        }
+                        movie.setTime(gifTimeMs += 20);
+                        drawGif(xPosition, yPosition, movie);
+                        sleep(1);
+                    }
+                } catch (InterruptedException aE) {
+                    aE.printStackTrace();
+                    Log.i(TAG, "BottomDrawThread: interrupted");
+                }
+            }
+        };
+        mBottomDrawThread.start();
+    }
+
+    private void drawGif(float aXPosition, float aYPosition, Movie aMovie) {
+        synchronized (getActivity()) {
+            Canvas canvas = mSurface.lockCanvas(mSurfaceHolder.getSurfaceFrame());
+            if ((aXPosition == -1)) {
+                aXPosition = (canvas.getWidth() - aMovie.width()) / 2;
+            }
+            if (aYPosition == -1) {
+                aYPosition = (canvas.getHeight() - aMovie.height());
+            }
+
+            aMovie.draw(canvas, aXPosition, aYPosition);
+            mSurface.unlockCanvasAndPost(canvas);
+        }
     }
 
     @Override
@@ -98,14 +141,25 @@ public class DialogView extends DialogFragment implements SurfaceHolder.Callback
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
-        if (mDrawThread != null) {
+        if (mTopDrawThread != null) {
             try {
-                mDrawThread.interrupt();
-                mDrawThread.join();
-                mDrawThread = null;
+                mTopDrawThread.interrupt();
+                mTopDrawThread.join();
+                mTopDrawThread = null;
             } catch (InterruptedException aE) {
                 aE.printStackTrace();
-                Log.i(TAG, "DrawThread: interruption failed");
+                Log.i(TAG, "TopDrawThread: interruption failed");
+            }
+        }
+
+        if (mBottomDrawThread != null) {
+            try {
+                mBottomDrawThread.interrupt();
+                mBottomDrawThread.join();
+                mBottomDrawThread = null;
+            } catch (InterruptedException aE) {
+                aE.printStackTrace();
+                Log.i(TAG, "BottomDrawThread: interruption failed");
             }
         }
     }
